@@ -64,6 +64,7 @@ function RootStack() {
 
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="signup" options={{ title: '' }} />
         </Stack.Protected>
 
         <Stack.Screen name="server" options={{ title: '서버 설정', presentation: 'modal' }} />

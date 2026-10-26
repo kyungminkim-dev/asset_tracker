@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SocialButtons } from '@/components/SocialButtons';
-import { api, type AuthProvider } from '@/lib/api';
+import { api, ApiError, type AuthProvider } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { useAsync } from '@/lib/useAsync';
@@ -19,7 +19,14 @@ export default function Login() {
     try {
       await signIn(id, 'login');
     } catch (err) {
-      Alert.alert('로그인하지 못했어요', (err as Error).message);
+      if (err instanceof ApiError && err.code === 'not_registered') {
+        Alert.alert('가입되지 않은 계정이에요', '회원가입을 먼저 해주세요.', [
+          { text: '취소', style: 'cancel' },
+          { text: '회원가입', onPress: () => router.push('/signup') },
+        ]);
+      } else {
+        Alert.alert('로그인하지 못했어요', (err as Error).message);
+      }
     } finally {
       setBusy(null);
     }
@@ -54,6 +61,13 @@ export default function Login() {
 
         {providers?.length ? <SocialButtons providers={providers} mode="login" busy={busy} onPress={start} /> : null}
 
+        <View style={styles.links}>
+          <Text style={{ color: t.sub, fontSize: 15 }}>처음이신가요?</Text>
+          <Pressable onPress={() => router.push('/signup')} hitSlop={8}>
+            <Text style={{ color: t.primary, fontSize: 15, fontWeight: '700' }}>회원가입</Text>
+          </Pressable>
+        </View>
+
         <Pressable onPress={() => router.push('/server')} hitSlop={8} style={{ alignSelf: 'center' }}>
           <Text style={{ color: t.sub, fontSize: 13 }}>서버 설정</Text>
         </Pressable>
@@ -68,4 +82,5 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.8, lineHeight: 38, marginBottom: 12 },
   subtitle: { fontSize: 16, lineHeight: 24 },
   bottom: { gap: 16, paddingBottom: 24 },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 4 },
 });
