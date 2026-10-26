@@ -1,10 +1,11 @@
-import { timingSafeEqual } from 'node:crypto';
 import Fastify from 'fastify';
 import cron from 'node-cron';
+import { registerAuthRoutes } from './auth/routes.js';
+import { userIdForSession } from './auth/service.js';
 import { config } from './config.js';
 import { openDb } from './db.js';
 import { registerRoutes } from './routes.js';
-import { syncAll } from './services/sync.js';
+import { syncEveryone } from './services/sync.js';
 
 const db = openDb();
 const app = Fastify({ logger: { level: 'info' } });
@@ -18,35 +19,38 @@ app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body,
   }
 });
 
-const expected =Buffer.from(`Bearer ${config.appToken}`);
-app.addHook('onRequest', async (req, reply) => {
-  if (req.url === '/health') return;
-  const got = Buffer.from(req.headers.authorization ?? '');
-  if (got.length !== expected.length || !timingSafeEqual(got, expected)) {
-    return reply.code(401).send({ error: 'unauthorized' });
-  }
-});
-
 app.setErrorHandler((err: Error, _req, reply) => {
   app.log.error(err);
   reply.code(400).send({ error: err.message });
 });
 
 app.get('/health', async () => ({ ok: true }));
-registerRoutes(app, db);
+registerAuthRoutes(app, db);
 
-// 매일 정해진 시각에 자동으로 스냅샷을 남긴다 (기간별 변화 그래프용)
+// /api/* 는 로그인 세션이 있어야 한다
+app.register(async (api) => {
+  api.decorateRequest('userId', '');
+  api.decorateRequest('sessionToken', '');
+  api.addHook('onRequest', async (req, reply) => {
+    const header = req.headers.authorization ?? '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const userId = token ? userIdForSession(db, token) : null;
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+    req.userId = userId;
+    req.sessionToken = token;
+  });
+  registerRoutes(api, db);
+});
+
+// 매일 정해진 시각에 모든 사용자의 스냅샷을 남긴다 (기간별 변화 그래프용)
 cron.schedule(
   config.snapshotCron,
   async () => {
-    try {
-      const result = await syncAll(db);
-      app.log.info({ result }, 'scheduled snapshot done');
-    } catch (err) {
-      app.log.error(err, 'scheduled snapshot failed');
-    }
+    const results = await syncEveryone(db);
+    app.log.info({ results }, 'scheduled snapshot done');
   },
   { timezone: config.timezone },
 );
 
 await app.listen({ port: config.port, host: '0.0.0.0' });
+if (config.devLogin) app.log.warn('DEV_LOGIN=true: 개발용 테스트 로그인이 켜져 있습니다. 배포 서버에서는 끄세요.');

@@ -14,41 +14,41 @@ interface SnapshotRow {
 }
 
 /** 기간 시작 시점의 기준 스냅샷: 시작일 이전 가장 최근 것, 없으면 가장 오래된 것 */
-function baseline(db: Db, range: Range): SnapshotRow | undefined {
+function baseline(db: Db, userId: string, range: Range): SnapshotRow | undefined {
   const days = RANGES[range];
   if (days !== null) {
     const start = toKstDate(new Date(Date.now() - days * 86_400_000));
-    const row = db.prepare('SELECT * FROM snapshots WHERE date <= ? ORDER BY date DESC LIMIT 1').get(start);
+    const row = db.prepare('SELECT * FROM snapshots WHERE user_id = ? AND date <= ? ORDER BY date DESC LIMIT 1').get(userId, start);
     if (row) return row as unknown as SnapshotRow;
   }
-  return db.prepare('SELECT * FROM snapshots ORDER BY date ASC LIMIT 1').get() as unknown as SnapshotRow | undefined;
+  return db.prepare('SELECT * FROM snapshots WHERE user_id = ? ORDER BY date ASC LIMIT 1').get(userId) as unknown as SnapshotRow | undefined;
 }
 
-export function history(db: Db, range: Range) {
-  const base = baseline(db, range);
+export function history(db: Db, userId: string, range: Range) {
+  const base = baseline(db, userId, range);
   if (!base) return { range, points: [] };
   const rows = db
-    .prepare('SELECT date, total_value_krw, total_cost_krw, cash_krw FROM snapshots WHERE date >= ? ORDER BY date')
-    .all(base.date) as unknown as SnapshotRow[];
+    .prepare('SELECT date, total_value_krw, total_cost_krw, cash_krw FROM snapshots WHERE user_id = ? AND date >= ? ORDER BY date')
+    .all(userId, base.date) as unknown as SnapshotRow[];
   return {
     range,
     points: rows.map((r) => ({ date: r.date, value: r.total_value_krw, cost: r.total_cost_krw + r.cash_krw })),
   };
 }
 
-export function summary(db: Db, range: Range) {
-  const latest = db.prepare('SELECT * FROM snapshots ORDER BY date DESC LIMIT 1').get() as unknown as SnapshotRow | undefined;
+export function summary(db: Db, userId: string, range: Range) {
+  const latest = db.prepare('SELECT * FROM snapshots WHERE user_id = ? ORDER BY date DESC LIMIT 1').get(userId) as unknown as SnapshotRow | undefined;
   if (!latest) return null;
-  const base = baseline(db, range)!;
+  const base = baseline(db, userId, range)!;
 
-  const positions = db.prepare('SELECT * FROM snapshot_positions WHERE date = ?').all(latest.date) as any[];
-  const cash = db.prepare('SELECT * FROM snapshot_cash WHERE date = ?').all(latest.date) as any[];
+  const positions = db.prepare('SELECT * FROM snapshot_positions WHERE user_id = ? AND date = ?').all(userId, latest.date) as any[];
+  const cash = db.prepare('SELECT * FROM snapshot_cash WHERE user_id = ? AND date = ?').all(userId, latest.date) as any[];
   const basePrices = new Map(
-    (db.prepare('SELECT market, symbol, current_price FROM snapshot_positions WHERE date = ?').all(base.date) as any[]).map(
+    (db.prepare('SELECT market, symbol, current_price FROM snapshot_positions WHERE user_id = ? AND date = ?').all(userId, base.date) as any[]).map(
       (r) => [`${r.market}:${r.symbol}`, r.current_price as number],
     ),
   );
-  const labels = new Map(listConnections(db).map((c) => [c.id, c.label]));
+  const labels = new Map(listConnections(db, userId).map((c) => [c.id, c.label]));
 
   // 같은 종목을 여러 증권사에서 갖고 있으면 하나로 합친다
   const holdings = new Map<string, any>();

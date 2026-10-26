@@ -5,6 +5,7 @@ import type { Db } from '../db.js';
 
 export interface ConnectionRow {
   id: string;
+  user_id: string;
   broker_id: string;
   label: string;
   credentials: string;
@@ -13,9 +14,17 @@ export interface ConnectionRow {
   last_error: string | null;
 }
 
-export function listConnections(db: Db) {
-  const rows = db.prepare('SELECT * FROM connections ORDER BY created_at').all() as unknown as ConnectionRow[];
-  return rows;
+export function listConnections(db: Db, userId: string) {
+  return db
+    .prepare('SELECT * FROM connections WHERE user_id = ? ORDER BY created_at')
+    .all(userId) as unknown as ConnectionRow[];
+}
+
+/** 다른 사용자의 연결은 찾지 못한다 */
+export function getConnection(db: Db, userId: string, id: string) {
+  return db.prepare('SELECT * FROM connections WHERE id = ? AND user_id = ?').get(id, userId) as unknown as
+    | ConnectionRow
+    | undefined;
 }
 
 /** 앱에 내려보낼 때는 credentials 를 절대 포함하지 않는다 */
@@ -33,7 +42,13 @@ export function publicConnection(row: ConnectionRow) {
   };
 }
 
-export function createConnection(db: Db, brokerId: string, label: string, credentials: Record<string, string>) {
+export function createConnection(
+  db: Db,
+  userId: string,
+  brokerId: string,
+  label: string,
+  credentials: Record<string, string>,
+) {
   const broker = getBroker(brokerId);
   const clean: Record<string, string> = {};
   for (const field of broker.credentialFields) {
@@ -46,6 +61,7 @@ export function createConnection(db: Db, brokerId: string, label: string, creden
   }
   const row: ConnectionRow = {
     id: randomUUID(),
+    user_id: userId,
     broker_id: brokerId,
     label: label.trim() || broker.name,
     credentials: encryptJson(clean),
@@ -54,13 +70,13 @@ export function createConnection(db: Db, brokerId: string, label: string, creden
     last_error: null,
   };
   db.prepare(
-    'INSERT INTO connections (id, broker_id, label, credentials, created_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(row.id, row.broker_id, row.label, row.credentials, row.created_at);
+    'INSERT INTO connections (id, user_id, broker_id, label, credentials, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(row.id, row.user_id, row.broker_id, row.label, row.credentials, row.created_at);
   return row;
 }
 
-export function deleteConnection(db: Db, id: string) {
-  db.prepare('DELETE FROM connections WHERE id = ?').run(id);
+export function deleteConnection(db: Db, userId: string, id: string) {
+  db.prepare('DELETE FROM connections WHERE id = ? AND user_id = ?').run(id, userId);
 }
 
 export function adapterFor(db: Db, row: ConnectionRow) {

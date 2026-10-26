@@ -10,23 +10,40 @@ export interface SyncResult {
   connections: { id: string; label: string; ok: boolean; error?: string }[];
 }
 
-let running: Promise<SyncResult> | null = null;
+const running = new Map<string, Promise<SyncResult>>();
 
-/** 동시에 여러 번 호출돼도 한 번만 실행한다 */
-export function syncAll(db: Db): Promise<SyncResult> {
-  running ??= doSync(db).finally(() => {
-    running = null;
-  });
-  return running;
+/** 같은 사용자의 동기화가 동시에 여러 번 호출돼도 한 번만 실행한다 */
+export function syncUser(db: Db, userId: string): Promise<SyncResult> {
+  let job = running.get(userId);
+  if (!job) {
+    job = doSync(db, userId).finally(() => running.delete(userId));
+    running.set(userId, job);
+  }
+  return job;
+}
+
+/** 매일 스케줄러용: 증권사를 연결한 모든 사용자를 차례로 동기화 */
+export async function syncEveryone(db: Db) {
+  const users = db.prepare('SELECT DISTINCT user_id FROM connections').all() as { user_id: string }[];
+  const results: { userId: string; ok: boolean; error?: string }[] = [];
+  for (const { user_id } of users) {
+    try {
+      await syncUser(db, user_id);
+      results.push({ userId: user_id, ok: true });
+    } catch (err) {
+      results.push({ userId: user_id, ok: false, error: (err as Error).message });
+    }
+  }
+  return results;
 }
 
 /**
- * 모든 연결된 증권사에서 잔고를 가져와 오늘(KST) 스냅샷을 만든다.
+ * 사용자의 모든 연결된 증권사에서 잔고를 가져와 오늘(KST) 스냅샷을 만든다.
  * 하루에 여러 번 실행하면 그날 스냅샷을 덮어쓴다.
  * 특정 증권사가 실패하면 직전 스냅샷의 값을 이어붙여(stale) 그래프가 갑자기 꺼지지 않게 한다.
  */
-async function doSync(db: Db): Promise<SyncResult> {
-  const connections = listConnections(db);
+async function doSync(db: Db, userId: string): Promise<SyncResult> {
+  const connections = listConnections(db, userId);
   const date = toKstDate();
   const now = new Date().toISOString();
 
@@ -87,18 +104,16 @@ async function doSync(db: Db): Promise<SyncResult> {
   let totalCash = 0;
 
   transaction(db, () => {
-    db.prepare('DELETE FROM snapshots WHERE date = ?').run(date);
-    db.prepare('INSERT INTO snapshots (date, taken_at, fx, total_value_krw, total_cost_krw, cash_krw) VALUES (?, ?, ?, 0, 0, 0)').run(
-      date,
-      now,
-      JSON.stringify(fx),
-    );
+    db.prepare('DELETE FROM snapshots WHERE user_id = ? AND date = ?').run(userId, date);
+    db.prepare(
+      'INSERT INTO snapshots (user_id, date, taken_at, fx, total_value_krw, total_cost_krw, cash_krw) VALUES (?, ?, ?, ?, 0, 0, 0)',
+    ).run(userId, date, now, JSON.stringify(fx));
     const insPos = db.prepare(`
-      INSERT INTO snapshot_positions (date, connection_id, account_id, symbol, name, market, currency, quantity,
+      INSERT INTO snapshot_positions (user_id, date, connection_id, account_id, symbol, name, market, currency, quantity,
         avg_price, current_price, market_value, cost_basis, market_value_krw, cost_basis_krw, stale)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const insCash = db.prepare(
-      'INSERT INTO snapshot_cash (date, connection_id, account_id, currency, amount, amount_krw, stale) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO snapshot_cash (user_id, date, connection_id, account_id, currency, amount, amount_krw, stale) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     );
 
     const addPosition = (connId: string, accountId: string, p: any, stale: number) => {
@@ -106,13 +121,13 @@ async function doSync(db: Db): Promise<SyncResult> {
       const cost = krw(p.costBasis, p.currency);
       totalValue += mv;
       totalCost += cost;
-      insPos.run(date, connId, accountId, p.symbol, p.name, p.market, p.currency, p.quantity, p.avgPrice,
+      insPos.run(userId, date, connId, accountId, p.symbol, p.name, p.market, p.currency, p.quantity, p.avgPrice,
         p.currentPrice, p.marketValue, p.costBasis, mv, cost, stale);
     };
     const addCash = (connId: string, accountId: string, currency: string, amount: number, stale: number) => {
       const value = krw(amount, currency);
       totalCash += value;
-      insCash.run(date, connId, accountId, currency, amount, value, stale);
+      insCash.run(userId, date, connId, accountId, currency, amount, value, stale);
     };
 
     for (const [connId, accounts] of fresh)
@@ -129,10 +144,11 @@ async function doSync(db: Db): Promise<SyncResult> {
       for (const r of cash) addCash(connId, r.account_id, r.currency, r.amount, 1);
     }
 
-    db.prepare('UPDATE snapshots SET total_value_krw = ?, total_cost_krw = ?, cash_krw = ? WHERE date = ?').run(
+    db.prepare('UPDATE snapshots SET total_value_krw = ?, total_cost_krw = ?, cash_krw = ? WHERE user_id = ? AND date = ?').run(
       totalValue + totalCash,
       totalCost,
       totalCash,
+      userId,
       date,
     );
 
