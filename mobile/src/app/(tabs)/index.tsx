@@ -2,22 +2,24 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from '@/components/LineChart';
-import { AllocationBar, Button, Card, Chips, EmptyState, InfoRow, SectionTitle } from '@/components/ui';
-import { api, type HistoryPoint, RANGES } from '@/lib/api';
+import { PeriodChips } from '@/components/PeriodChips';
+import { AllocationBar, Button, Card, EmptyState, InfoRow, SectionTitle } from '@/components/ui';
+import { api, type HistoryPoint } from '@/lib/api';
 import { krw, pct, signed } from '@/lib/format';
-import { RANGE_LABEL, useRange } from '@/lib/range';
+import { periodPhrase, periodQuery, usePeriod } from '@/lib/range';
 import { changeColor, useTheme } from '@/lib/theme';
 import { useAsync } from '@/lib/useAsync';
 
 export default function Home() {
   const t = useTheme();
-  const { range, setRange } = useRange();
+  const { period } = usePeriod();
+  const query = periodQuery(period);
   const [scrub, setScrub] = useState<HistoryPoint | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const { data, error, loading, reload } = useAsync(
-    () => Promise.all([api.summary(range), api.history(range), api.connections()]),
-    [range],
+    () => Promise.all([api.summary(query), api.history(query), api.connections()]),
+    [query],
   );
   const [summary, history, connections] = data ?? [];
 
@@ -78,13 +80,13 @@ export default function Home() {
         </View>
         <Text style={[styles.total, { color: t.text }]}>{shown ? krw(shown.value) : '0원'}</Text>
         <Text style={{ color, fontSize: 15, fontWeight: '600', marginBottom: 20 }}>
-          {RANGE_LABEL[range]} 전보다 {signed(delta, krw)} ({signed(rate, pct)})
+          {periodPhrase(period)} {signed(delta, krw)} ({signed(rate, pct)})
         </Text>
 
         <LineChart points={points} color={color} onScrub={setScrub} height={180} />
 
         <View style={{ marginTop: 16 }}>
-          <Chips options={RANGES} value={range} onChange={setRange} label={(r) => RANGE_LABEL[r]} stretch />
+          <PeriodChips />
         </View>
       </Card>
 

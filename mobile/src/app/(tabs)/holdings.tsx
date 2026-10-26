@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { PeriodChips } from '@/components/PeriodChips';
 import { Avatar, Card, Chips, EmptyState, ListRow } from '@/components/ui';
-import { api, type Holding, RANGES } from '@/lib/api';
+import { api, type Holding } from '@/lib/api';
 import { krw, MARKET_LABEL, pct, price, signed } from '@/lib/format';
-import { RANGE_LABEL, useRange } from '@/lib/range';
+import { periodLabel, periodQuery, usePeriod } from '@/lib/range';
 import { changeColor, useTheme } from '@/lib/theme';
 import { useAsync } from '@/lib/useAsync';
 
@@ -12,9 +13,10 @@ const SORT_LABEL: Record<Sort, string> = { value: '평가금액순', profit: '�
 
 export default function Holdings() {
   const t = useTheme();
-  const { range, setRange } = useRange();
+  const { period } = usePeriod();
+  const query = periodQuery(period);
   const [sort, setSort] = useState<Sort>('value');
-  const { data, error, loading, reload } = useAsync(() => api.summary(range), [range]);
+  const { data, error, loading, reload } = useAsync(() => api.summary(query), [query]);
 
   const holdings = useMemo(() => {
     const list = [...(data?.holdings ?? [])];
@@ -42,14 +44,14 @@ export default function Holdings() {
 
       <Card padded={false} style={{ paddingVertical: 12 }}>
         <View style={{ paddingHorizontal: 16, gap: 8, marginBottom: 6 }}>
-          <Chips options={RANGES} value={range} onChange={setRange} label={(r) => RANGE_LABEL[r]} stretch />
+          <PeriodChips />
           <Chips options={['value', 'profit', 'period'] as const} value={sort} onChange={setSort} label={(s) => SORT_LABEL[s]} />
         </View>
 
         {error ? <Text style={{ color: t.danger, paddingHorizontal: 22, paddingVertical: 8 }}>{error}</Text> : null}
 
         {holdings.map((h) => (
-          <HoldingRow key={`${h.market}:${h.symbol}`} h={h} sort={sort} rangeLabel={RANGE_LABEL[range]} />
+          <HoldingRow key={`${h.market}:${h.symbol}`} h={h} sort={sort} rangeLabel={periodLabel(period)} />
         ))}
 
         {!loading && holdings.length === 0 ? (

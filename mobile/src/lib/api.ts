@@ -58,7 +58,8 @@ export interface Group {
 
 export interface Summary {
   asOf: string;
-  range: Range;
+  range: Range | 'CUSTOM';
+  period: { start: string | null; end: string | null };
   baselineDate: string;
   fx: Record<string, number>;
   totalValue: number;
@@ -185,6 +186,7 @@ export const api = {
   deleteManualPosition: (id: string, positionId: string) =>
     request(`/api/connections/${id}/manual-positions/${positionId}`, { method: 'DELETE' }),
   sync: () => request<SyncResult>('/api/sync', { method: 'POST' }),
-  summary: (range: Range) => request<Summary | null>(`/api/portfolio/summary?range=${range}`),
-  history: (range: Range) => request<{ range: Range; points: HistoryPoint[] }>(`/api/portfolio/history?range=${range}`),
+  /** query: periodQuery(period) 결과 (range=1M 또는 from=…&to=…) */
+  summary: (query: string) => request<Summary | null>(`/api/portfolio/summary?${query}`),
+  history: (query: string) => request<{ points: HistoryPoint[] }>(`/api/portfolio/history?${query}`),
 };
