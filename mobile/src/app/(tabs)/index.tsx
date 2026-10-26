@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from '@/components/LineChart';
 import { AllocationBar, Button, Card, Chips, EmptyState, InfoRow, SectionTitle } from '@/components/ui';
@@ -16,10 +16,19 @@ export default function Home() {
   const [syncing, setSyncing] = useState(false);
 
   const { data, error, loading, reload } = useAsync(
-    () => Promise.all([api.summary(range), api.history(range)]),
+    () => Promise.all([api.summary(range), api.history(range), api.connections()]),
     [range],
   );
-  const [summary, history] = data ?? [];
+  const [summary, history, connections] = data ?? [];
+
+  // 로그인 후 연결된 계좌가 하나도 없으면 자산 연결 화면을 한 번 띄운다
+  const prompted = useRef(false);
+  useEffect(() => {
+    if (connections && connections.length === 0 && !prompted.current) {
+      prompted.current = true;
+      router.push('/connect');
+    }
+  }, [connections]);
 
   const sync = async () => {
     setSyncing(true);
@@ -113,7 +122,7 @@ export default function Home() {
           <EmptyState
             title="아직 모은 자산이 없어요"
             description="증권사 계좌를 연결하면 한곳에서 볼 수 있어요."
-            action={<Button title="계좌 연결하기" size="medium" onPress={() => router.push('/connect')} />}
+            action={<Button title="자산 연결하기" size="medium" onPress={() => router.push('/connect')} />}
           />
         </Card>
       ) : null}

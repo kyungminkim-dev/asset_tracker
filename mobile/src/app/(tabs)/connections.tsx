@@ -54,7 +54,7 @@ export default function Connections() {
         {data?.map((c) => (
           <ListRow
             key={c.id}
-            left={<Avatar label={c.brokerName === '직접 입력' ? c.label : c.brokerName} colorKey={c.brokerId} />}
+            left={<Avatar label={c.brokerId === 'manual' ? c.label : c.brokerName} colorKey={c.brokerId === 'manual' ? c.label : c.brokerId} />}
             title={c.label}
             subtitle={statusText(c)}
             chevron
@@ -70,7 +70,7 @@ export default function Connections() {
           <EmptyState title="연결된 계좌가 없어요" description="증권사를 연결하면 보유 주식을 자동으로 불러와요." />
         ) : null}
         <View style={{ paddingHorizontal: 22, paddingVertical: 12 }}>
-          <Button title="계좌 연결하기" icon="plus" variant="weak" size="medium" onPress={() => router.push('/connect')} />
+          <Button title="자산 연결하기" icon="plus" variant="weak" size="medium" onPress={() => router.push('/connect')} />
         </View>
       </Card>
 

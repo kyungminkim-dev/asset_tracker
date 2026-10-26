@@ -59,6 +59,8 @@ function RootStack() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="connect/index" options={{ title: '' }} />
           <Stack.Screen name="connect/[brokerId]" options={{ title: '' }} />
+          {/* 완료 화면에서는 뒤로 가서 이미 끝난 단계를 다시 밟지 않게 막는다 */}
+          <Stack.Screen name="connect/done" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="manual/[id]" options={{ title: '' }} />
         </Stack.Protected>
 
