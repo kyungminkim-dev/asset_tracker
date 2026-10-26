@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { type GestureResponderEvent, type LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
-import Svg, { Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 import type { HistoryPoint } from '@/lib/api';
 import { krw, krwShort } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
@@ -48,7 +48,7 @@ export function LineChart({ points, color, height = 200, onScrub }: Props) {
   if (points.length === 0) {
     return (
       <View style={[styles.empty, { height }]}>
-        <Text style={{ color: t.sub }}>아직 기록이 없어요. 동기화하면 오늘부터 쌓입니다.</Text>
+        <Text style={{ color: t.sub, fontSize: 14 }}>아직 기록이 없어요. 동기화하면 오늘부터 쌓여요.</Text>
       </View>
     );
   }
@@ -69,16 +69,19 @@ export function LineChart({ points, color, height = 200, onScrub }: Props) {
           <Svg width={width} height={height}>
             <Defs>
               <LinearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={color} stopOpacity={0.25} />
+                <Stop offset="0" stopColor={color} stopOpacity={0.14} />
                 <Stop offset="1" stopColor={color} stopOpacity={0} />
               </LinearGradient>
             </Defs>
             <Path d={geo.area} fill="url(#fill)" />
             {/* 점선: 투자원금(매입금액 + 예수금) */}
-            <Path d={geo.cost} stroke={t.sub} strokeWidth={1} strokeDasharray="4 4" fill="none" />
-            <Path d={geo.value} stroke={color} strokeWidth={2.5} fill="none" strokeLinejoin="round" />
+            <Path d={geo.cost} stroke={t.sub} strokeOpacity={0.6} strokeWidth={1} strokeDasharray="3 4" fill="none" />
+            <Path d={geo.value} stroke={color} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
             {active !== null && (
-              <Line x1={geo.x(active)} x2={geo.x(active)} y1={0} y2={height} stroke={t.sub} strokeWidth={1} />
+              <>
+                <Line x1={geo.x(active)} x2={geo.x(active)} y1={0} y2={height} stroke={t.border} strokeWidth={1} />
+                <Circle cx={geo.x(active)} cy={geo.y(points[active]!.value)} r={5} fill={color} stroke={t.card} strokeWidth={2} />
+              </>
             )}
           </Svg>
         )}

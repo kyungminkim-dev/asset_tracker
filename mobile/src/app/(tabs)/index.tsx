@@ -2,14 +2,14 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from '@/components/LineChart';
-import { AllocationBar, Button, Card, Segmented, SectionTitle } from '@/components/ui';
+import { AllocationBar, Button, Card, Chips, EmptyState, InfoRow, SectionTitle } from '@/components/ui';
 import { api, type HistoryPoint, RANGES } from '@/lib/api';
 import { krw, pct, signed } from '@/lib/format';
 import { RANGE_LABEL, useRange } from '@/lib/range';
 import { changeColor, useTheme } from '@/lib/theme';
 import { useAsync } from '@/lib/useAsync';
 
-export default function Dashboard() {
+export default function Home() {
   const t = useTheme();
   const { range, setRange } = useRange();
   const [scrub, setScrub] = useState<HistoryPoint | null>(null);
@@ -26,10 +26,10 @@ export default function Dashboard() {
     try {
       const result = await api.sync();
       const failed = result.connections.filter((c) => !c.ok);
-      if (failed.length) Alert.alert('일부 증권사 동기화 실패', failed.map((c) => `${c.label}: ${c.error}`).join('\n'));
+      if (failed.length) Alert.alert('일부 계좌를 불러오지 못했어요', failed.map((c) => `${c.label}: ${c.error}`).join('\n'));
       await reload();
     } catch (err) {
-      Alert.alert('동기화 실패', (err as Error).message);
+      Alert.alert('불러오기 실패', (err as Error).message);
     } finally {
       setSyncing(false);
     }
@@ -37,9 +37,12 @@ export default function Dashboard() {
 
   if (error && !summary) {
     return (
-      <View style={styles.center}>
-        <Text style={{ color: t.sub, marginBottom: 16, textAlign: 'center' }}>{error}</Text>
-        <Button title="서버 설정" onPress={() => router.push('/settings')} />
+      <View style={[styles.center, { backgroundColor: t.bg }]}>
+        <EmptyState
+          title="자산을 불러오지 못했어요"
+          description={error}
+          action={<Button title="서버 설정 확인" variant="weak" size="medium" onPress={() => router.push('/server')} />}
+        />
       </View>
     );
   }
@@ -55,40 +58,40 @@ export default function Dashboard() {
   return (
     <ScrollView
       contentContainerStyle={styles.container}
-      refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={reload} />}
+      refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={reload} tintColor={t.sub} />}
     >
       <Card>
-        <Text style={{ color: t.sub, fontSize: 13 }}>
-          총 자산 {shown ? `· ${shown.date}` : ''}
-        </Text>
-        <Text style={[styles.total, { color: t.text }]}>{shown ? krw(shown.value) : '-'}</Text>
-        <Text style={{ color, fontWeight: '600', marginBottom: 16 }}>
-          {RANGE_LABEL[range]} {signed(delta, krw)} ({signed(rate, pct)})
+        <View style={styles.totalHeader}>
+          <Text style={{ color: t.sub, fontSize: 15, fontWeight: '500' }}>
+            {scrub ? scrub.date : '총 자산'}
+          </Text>
+          <Button title="새로고침" icon="refresh" variant="neutral" size="small" onPress={sync} loading={syncing} />
+        </View>
+        <Text style={[styles.total, { color: t.text }]}>{shown ? krw(shown.value) : '0원'}</Text>
+        <Text style={{ color, fontSize: 15, fontWeight: '600', marginBottom: 20 }}>
+          {RANGE_LABEL[range]} 전보다 {signed(delta, krw)} ({signed(rate, pct)})
         </Text>
 
-        <LineChart points={points} color={color} onScrub={setScrub} />
+        <LineChart points={points} color={color} onScrub={setScrub} height={180} />
 
         <View style={{ marginTop: 16 }}>
-          <Segmented options={RANGES} value={range} onChange={setRange} label={(r) => RANGE_LABEL[r]} />
+          <Chips options={RANGES} value={range} onChange={setRange} label={(r) => RANGE_LABEL[r]} stretch />
         </View>
       </Card>
 
       {summary ? (
         <>
           <Card>
-            <View style={styles.statRow}>
-              <Stat label="주식 평가액" value={krw(summary.stockValue)} />
-              <Stat label="예수금" value={krw(summary.cash)} />
-            </View>
-            <View style={[styles.statRow, { marginTop: 14 }]}>
-              <Stat label="매입금액" value={krw(summary.totalCost)} />
-              <Stat
-                label="평가손익"
-                value={`${signed(summary.profit, krw)}`}
-                sub={signed(summary.profitRate, pct)}
-                color={changeColor(t, summary.profit)}
-              />
-            </View>
+            <SectionTitle>투자 현황</SectionTitle>
+            <InfoRow label="주식 평가금액" value={krw(summary.stockValue)} />
+            <InfoRow label="예수금" value={krw(summary.cash)} />
+            <InfoRow label="투자 원금" value={krw(summary.totalCost)} />
+            <InfoRow
+              label="평가 손익"
+              value={signed(summary.profit, krw)}
+              sub={`(${signed(summary.profitRate, pct)})`}
+              valueColor={changeColor(t, summary.profit)}
+            />
           </Card>
 
           <Card>
@@ -97,45 +100,31 @@ export default function Dashboard() {
           </Card>
 
           <Card>
-            <SectionTitle>증권사별 비중</SectionTitle>
+            <SectionTitle>계좌별 비중</SectionTitle>
             <AllocationBar groups={summary.byBroker} labelOf={(k) => k} />
           </Card>
 
-          {summary.fx.USD ? (
-            <Text style={[styles.footnote, { color: t.sub }]}>
-              {summary.asOf} 기준 · USD {krw(summary.fx.USD)} 환율 적용
-            </Text>
-          ) : null}
+          <Text style={[styles.footnote, { color: t.sub }]}>
+            {summary.asOf} 기준{summary.fx.USD ? ` · 1달러 ${krw(summary.fx.USD)}` : ''}
+          </Text>
         </>
       ) : !loading ? (
         <Card>
-          <Text style={{ color: t.sub, marginBottom: 12 }}>
-            아직 스냅샷이 없어요. 증권사를 연결한 뒤 동기화하세요.
-          </Text>
-          <Button title="증권사 연결하기" variant="ghost" onPress={() => router.push('/connect')} />
+          <EmptyState
+            title="아직 모은 자산이 없어요"
+            description="증권사 계좌를 연결하면 한곳에서 볼 수 있어요."
+            action={<Button title="계좌 연결하기" size="medium" onPress={() => router.push('/connect')} />}
+          />
         </Card>
       ) : null}
-
-      <Button title="지금 동기화" onPress={sync} loading={syncing} />
     </ScrollView>
   );
 }
 
-function Stat({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  const t = useTheme();
-  return (
-    <View style={{ flex: 1 }}>
-      <Text style={{ color: t.sub, fontSize: 12, marginBottom: 4 }}>{label}</Text>
-      <Text style={{ color: color ?? t.text, fontSize: 15, fontWeight: '700' }}>{value}</Text>
-      {sub ? <Text style={{ color: color ?? t.sub, fontSize: 12 }}>{sub}</Text> : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { padding: 16, paddingBottom: 40 },
+  container: { padding: 12, paddingBottom: 40 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  total: { fontSize: 30, fontWeight: '800', marginVertical: 4 },
-  statRow: { flexDirection: 'row' },
-  footnote: { fontSize: 12, textAlign: 'center', marginBottom: 12 },
+  totalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  total: { fontSize: 32, fontWeight: '800', letterSpacing: -1, marginTop: 4, marginBottom: 6 },
+  footnote: { fontSize: 12, textAlign: 'center', marginTop: 4 },
 });

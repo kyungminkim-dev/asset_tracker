@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# 네이티브 프로젝트는 app.json 으로부터 생성된다 (Continuous Native Generation)
+/ios
+/android

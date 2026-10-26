@@ -1,7 +1,7 @@
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
-import { Button, Field, Segmented } from '@/components/ui';
+import { Button, Caption, Chips, Field } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 import { useAsync } from '@/lib/useAsync';
@@ -19,6 +19,7 @@ export default function ConnectBroker() {
 
   if (!broker) return null;
   const value = (key: string) => values[key] ?? broker.credentialFields.find((f) => f.key === key)?.options?.[0]?.value ?? '';
+  const missing = broker.credentialFields.some((f) => !f.optional && !value(f.key).trim());
 
   const submit = async () => {
     setSaving(true);
@@ -31,30 +32,33 @@ export default function ConnectBroker() {
         router.dismissTo('/connections');
       }
     } catch (err) {
-      Alert.alert('연결 실패', (err as Error).message);
+      Alert.alert('연결하지 못했어요', (err as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
+  const isApi = broker.kind === 'api';
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Stack.Screen options={{ title: broker.name }} />
-      <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
-        {broker.description ? <Text style={{ color: t.sub, marginBottom: 16 }}>{broker.description}</Text> : null}
+      <ScrollView contentContainerStyle={{ padding: 24 }} keyboardShouldPersistTaps="handled">
+        <Text style={{ color: t.text, fontSize: 24, fontWeight: '700', letterSpacing: -0.6, marginBottom: 8 }}>
+          {isApi ? `${broker.name} 연결` : '직접 입력할 계좌 만들기'}
+        </Text>
+        {broker.description ? <Caption style={{ marginBottom: 28 }}>{broker.description}</Caption> : null}
 
         <Field
-          label="이름"
-          placeholder={broker.kind === 'manual' ? '예: 삼성증권 ISA' : broker.name}
+          label="계좌 이름"
+          placeholder={isApi ? broker.name : '예: 삼성증권 ISA'}
           value={label}
           onChangeText={setLabel}
         />
 
         {broker.credentialFields.map((f) =>
           f.options ? (
-            <View key={f.key} style={{ marginBottom: 14 }}>
-              <Text style={{ color: t.sub, fontSize: 13, marginBottom: 6 }}>{f.label}</Text>
-              <Segmented
+            <View key={f.key} style={{ marginBottom: 20 }}>
+              <Text style={{ color: t.text2, fontSize: 14, fontWeight: '600', marginBottom: 8 }}>{f.label}</Text>
+              <Chips
                 options={f.options.map((o) => o.value)}
                 value={value(f.key)}
                 onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))}
@@ -74,14 +78,13 @@ export default function ConnectBroker() {
           ),
         )}
 
-        {broker.kind === 'api' ? (
-          <Text style={{ color: t.sub, fontSize: 12, marginBottom: 16 }}>
-            입력한 키는 내 서버에만 암호화되어 저장되며, 저장 전에 잔고 조회로 연결을 확인합니다.
-          </Text>
+        {isApi ? (
+          <Caption>입력한 키는 내 서버에만 암호화되어 저장되고, 저장 전에 잔고를 한 번 조회해 연결을 확인해요.</Caption>
         ) : null}
-
-        <Button title={broker.kind === 'api' ? '연결 확인 후 저장' : '만들기'} onPress={submit} loading={saving} />
       </ScrollView>
+      <View style={{ padding: 16, paddingBottom: 32 }}>
+        <Button title={isApi ? '연결하기' : '만들기'} onPress={submit} loading={saving} disabled={missing} />
+      </View>
     </KeyboardAvoidingView>
   );
 }

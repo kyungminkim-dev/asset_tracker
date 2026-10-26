@@ -1,4 +1,4 @@
-import { loadSettings } from './settings';
+import { loadServerUrl, loadSession } from './settings';
 
 export type Range = '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 export const RANGES: Range[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
@@ -106,17 +106,46 @@ export interface SyncResult {
   connections: { id: string; label: string; ok: boolean; error?: string }[];
 }
 
-export class ApiError extends Error {}
+export interface User {
+  id: string;
+  displayName: string;
+  email: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+  providers: string[];
+}
+
+export interface AuthProvider {
+  id: 'google' | 'kakao' | 'dev';
+  name: string;
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    /** 서버/로그인 오류 코드 (예: not_registered) */
+    public code?: string,
+  ) {
+    super(message);
+  }
+}
+
+// 세션이 만료되면 로그인 화면으로 보내기 위한 콜백 (AuthProvider 가 등록)
+let onUnauthorized: (() => void) | null = null;
+export const setUnauthorizedHandler = (fn: (() => void) | null) => {
+  onUnauthorized = fn;
+};
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const { url, token } = await loadSettings();
+  const [url, session] = await Promise.all([loadServerUrl(), loadSession()]);
   if (!url) throw new ApiError('설정에서 서버 주소를 입력하세요.');
   let res: Response;
   try {
     res = await fetch(`${url}${path}`, {
       ...init,
       headers: {
-        authorization: `Bearer ${token}`,
+        ...(session ? { authorization: `Bearer ${session}` } : {}),
         ...(init.body ? { 'content-type': 'application/json' } : {}),
       },
     });
@@ -124,8 +153,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(`서버에 연결할 수 없습니다: ${url}`);
   }
   const body = await res.json().catch(() => null);
-  if (res.status === 401) throw new ApiError('접근 토큰이 올바르지 않습니다. 설정을 확인하세요.');
-  if (!res.ok) throw new ApiError(body?.error ?? `요청 실패 (${res.status})`);
+  if (res.status === 401 && path.startsWith('/api/')) {
+    onUnauthorized?.();
+    throw new ApiError('로그인이 만료되었습니다. 다시 로그인하세요.', 401);
+  }
+  if (!res.ok) throw new ApiError(body?.error ?? `요청 실패 (${res.status})`, res.status);
   return body as T;
 }
 
@@ -133,6 +165,15 @@ const json = (method: string, data: unknown): RequestInit => ({ method, body: JS
 
 export const api = {
   health: () => request<{ ok: boolean }>('/health'),
+  authProviders: () => request<AuthProvider[]>('/auth/providers'),
+  exchangeLoginCode: (code: string, verifier: string) =>
+    request<{ token: string; user: User }>('/auth/exchange', json('POST', { code, verifier })),
+  /** 브라우저 로그인이 끝났는지 확인. 아직이면 { pending: true } */
+  pollLogin: (verifier: string) =>
+    request<{ token: string; user: User } | { pending: true } | { error: string }>('/auth/poll', json('POST', { verifier })),
+  me: () => request<User>('/api/me'),
+  logout: () => request('/api/logout', { method: 'POST' }),
+  deleteAccount: () => request('/api/me', { method: 'DELETE' }),
   brokers: () => request<Broker[]>('/api/brokers'),
   connections: () => request<Connection[]>('/api/connections'),
   createConnection: (brokerId: string, label: string, credentials: Record<string, string>) =>
