@@ -6,14 +6,15 @@ import { SocialButtons } from '@/components/SocialButtons';
 import { Caption } from '@/components/ui';
 import { api, type AuthProvider } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { openLegal } from '@/lib/legal';
 import { useTheme } from '@/lib/theme';
 import { useAsync } from '@/lib/useAsync';
 
-// TODO: 약관 문서가 준비되면 각 항목에 "보기" 링크를 연결한다
+// 각 항목의 "보기"는 서버가 공개하는 문서(server/legal/*.md)를 연다. API 키 보관은 수집·이용 동의 3항에 설명돼 있다
 const TERMS = [
-  { key: 'service', label: '서비스 이용약관 동의' },
-  { key: 'privacy', label: '개인정보 수집·이용 동의' },
-  { key: 'credential', label: '증권사 API 키 암호화 보관 동의' },
+  { key: 'service', label: '서비스 이용약관 동의', doc: 'terms' },
+  { key: 'privacy', label: '개인정보 수집·이용 동의', doc: 'consent' },
+  { key: 'credential', label: '증권사 API 키 암호화 보관 동의', doc: 'consent' },
 ] as const;
 
 type TermKey = (typeof TERMS)[number]['key'];
@@ -63,13 +64,21 @@ export default function Signup() {
 
         <View style={{ marginTop: 8 }}>
           {TERMS.map((term) => (
-            <Pressable key={term.key} onPress={() => toggle(term.key)} style={styles.termRow} hitSlop={4}>
-              <Check on={agreed.has(term.key)} small />
-              <Text style={{ color: t.text2, fontSize: 15, flex: 1 }}>
-                <Text style={{ color: t.primary }}>[필수] </Text>
-                {term.label}
-              </Text>
-            </Pressable>
+            <View key={term.key} style={styles.termRow}>
+              <Pressable onPress={() => toggle(term.key)} style={styles.termToggle} hitSlop={4}>
+                <Check on={agreed.has(term.key)} small />
+                <Text style={{ color: t.text2, fontSize: 15, flex: 1 }}>
+                  <Text style={{ color: t.primary }}>[필수] </Text>
+                  {term.label}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => openLegal(term.doc).catch((err) => Alert.alert('문서를 열 수 없어요', (err as Error).message))}
+                hitSlop={8}
+              >
+                <Text style={{ color: t.sub, fontSize: 14, textDecorationLine: 'underline' }}>보기</Text>
+              </Pressable>
+            </View>
           ))}
         </View>
         {error ? <Caption style={{ color: t.danger, marginTop: 12 }}>{error}</Caption> : null}
@@ -108,5 +117,6 @@ function Check({ on, small }: { on: boolean; small?: boolean }) {
 const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.8, marginBottom: 8 },
   allRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16 },
-  termRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16 },
+  termRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, gap: 12 },
+  termToggle: { flex: 1, flexDirection: 'row', alignItems: 'center' },
 });

@@ -5,6 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { Icon, type IconName } from '@/components/Icon';
 import { Avatar, Caption, Card, ListRow, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { type LegalDoc, openLegal } from '@/lib/legal';
 import { loadServerUrl } from '@/lib/settings';
 import { THEME_LABEL, type ThemePreference, useTheme, useThemePreference } from '@/lib/theme';
 
@@ -98,10 +99,18 @@ export default function Settings() {
         <ListRow left={<RowIcon name="trash" danger />} title="회원 탈퇴" titleColor={t.danger} onPress={confirmDelete} />
       </Card>
 
+      <Card padded={false} style={{ paddingVertical: 8 }}>
+        <ListRow title="서비스 이용약관" chevron onPress={() => showLegal('terms')} />
+        <ListRow title="개인정보 처리방침" chevron onPress={() => showLegal('privacy')} />
+      </Card>
+
       <Caption style={{ textAlign: 'center', marginTop: 8 }}>버전 {Constants.expoConfig?.version ?? '-'}</Caption>
     </ScrollView>
   );
 }
+
+const showLegal = (doc: LegalDoc) =>
+  openLegal(doc).catch((err) => Alert.alert('문서를 열 수 없어요', (err as Error).message));
 
 function RowIcon({ name, danger }: { name: IconName; danger?: boolean }) {
   const t = useTheme();
