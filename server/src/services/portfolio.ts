@@ -35,6 +35,16 @@ interface SnapshotRow {
   fx: string;
 }
 
+/** 스냅샷의 USD 환율. 예전 스냅샷에 없으면 가장 최근에 알려진 환율로 대신한다 (환율은 사용자와 무관) */
+function usdRate(db: Db, fxJson: string): number | null {
+  const usd = (JSON.parse(fxJson) as Record<string, number>).USD;
+  if (usd) return usd;
+  const row = db
+    .prepare("SELECT json_extract(fx, '$.USD') AS usd FROM snapshots WHERE json_extract(fx, '$.USD') IS NOT NULL ORDER BY date DESC LIMIT 1")
+    .get() as { usd: number } | undefined;
+  return row?.usd ?? null;
+}
+
 /** 기간 끝 시점 스냅샷: 종료일 이전 가장 최근 것 */
 function endSnapshot(db: Db, userId: string, period: Period): SnapshotRow | undefined {
   return db
@@ -60,12 +70,18 @@ export function history(db: Db, userId: string, period: Period) {
   if (!base) return { range: period.range, points: [] };
   const rows = db
     .prepare(
-      'SELECT date, total_value_krw, total_cost_krw, cash_krw FROM snapshots WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date',
+      'SELECT date, total_value_krw, total_cost_krw, cash_krw, fx FROM snapshots WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date',
     )
     .all(userId, base.date, period.end ?? '9999-12-31') as unknown as SnapshotRow[];
   return {
     range: period.range,
-    points: rows.map((r) => ({ date: r.date, value: r.total_value_krw, cost: r.total_cost_krw + r.cash_krw })),
+    // usdKrw: 그날 환율. 앱이 달러로 보여줄 때 날짜별로 환산한다
+    points: rows.map((r) => ({
+      date: r.date,
+      value: r.total_value_krw,
+      cost: r.total_cost_krw + r.cash_krw,
+      usdKrw: usdRate(db, r.fx),
+    })),
   };
 }
 
@@ -118,6 +134,7 @@ export function summary(db: Db, userId: string, period: Period) {
     period: { start: period.start, end: period.end },
     baselineDate: base.date,
     fx: JSON.parse(latest.fx) as Record<string, number>,
+    usdKrw: usdRate(db, latest.fx),
     totalValue,
     stockValue,
     cash: latest.cash_krw,

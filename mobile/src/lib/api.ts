@@ -62,6 +62,7 @@ export interface Summary {
   period: { start: string | null; end: string | null };
   baselineDate: string;
   fx: Record<string, number>;
+  usdKrw: number | null;
   totalValue: number;
   stockValue: number;
   cash: number;
@@ -78,6 +79,8 @@ export interface HistoryPoint {
   date: string;
   value: number;
   cost: number;
+  /** 그날의 1달러당 원 (달러로 볼 때 사용) */
+  usdKrw: number | null;
 }
 
 export interface ManualPosition {

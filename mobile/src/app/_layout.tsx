@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useMemo } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { CurrencyProvider } from '@/lib/currency';
 import { RangeProvider } from '@/lib/range';
 import { ThemeProvider, useTheme, useThemePreference } from '@/lib/theme';
 
@@ -10,9 +11,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <RangeProvider>
-          <RootStack />
-        </RangeProvider>
+        <CurrencyProvider>
+          <RangeProvider>
+            <RootStack />
+          </RangeProvider>
+        </CurrencyProvider>
       </AuthProvider>
     </ThemeProvider>
   );

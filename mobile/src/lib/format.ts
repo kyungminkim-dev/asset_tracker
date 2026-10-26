@@ -11,6 +11,20 @@ export function krwShort(n: number) {
   return `${sign}${krwFmt.format(Math.round(abs))}`;
 }
 
+const usdFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export const usd = (n: number) => `${n < 0 ? '-' : ''}$${usdFmt.format(Math.abs(n))}`;
+
+/** $1.23K, $4.56M 처럼 큰 금액을 짧게 */
+export function usdShort(n: number) {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+}
+
 export const signed = (n: number, fmt: (n: number) => string) => (n > 0 ? '+' : n < 0 ? '-' : '') + fmt(Math.abs(n));
 
 export const pct = (r: number) => `${(r * 100).toFixed(2)}%`;

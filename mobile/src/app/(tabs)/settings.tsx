@@ -5,6 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { Icon, type IconName } from '@/components/Icon';
 import { Avatar, Caption, Card, ListRow, SectionTitle } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { CURRENCY_LABEL, useCurrency } from '@/lib/currency';
 import { type LegalDoc, openLegal } from '@/lib/legal';
 import { loadServerUrl } from '@/lib/settings';
 import { THEME_LABEL, type ThemePreference, useTheme, useThemePreference } from '@/lib/theme';
@@ -15,6 +16,7 @@ const THEME_ICON: Record<ThemePreference, IconName> = { system: 'phone', light: 
 export default function Settings() {
   const t = useTheme();
   const { preference, setPreference } = useThemePreference();
+  const { currency, setCurrency } = useCurrency();
   const { user, signOut, deleteAccount } = useAuth();
   const [server, setServer] = useState('');
 
@@ -85,6 +87,29 @@ export default function Settings() {
             </Pressable>
           );
         })}
+      </Card>
+
+      <Card>
+        <SectionTitle>표시 통화</SectionTitle>
+        {(['KRW', 'USD'] as const).map((c) => {
+          const on = currency === c;
+          return (
+            <Pressable
+              key={c}
+              onPress={() => setCurrency(c)}
+              style={({ pressed }) => [styles.option, pressed && { opacity: 0.6 }]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+            >
+              <View style={[styles.optionIcon, { backgroundColor: t.fill }]}>
+                <Text style={{ color: on ? t.primary : t.sub, fontSize: 17, fontWeight: '700' }}>{c === 'KRW' ? '₩' : '$'}</Text>
+              </View>
+              <Text style={{ flex: 1, color: t.text, fontSize: 16, fontWeight: on ? '700' : '500' }}>{CURRENCY_LABEL[c]}</Text>
+              {on ? <Icon name="check" size={22} color={t.primary} /> : null}
+            </Pressable>
+          );
+        })}
+        <Caption style={{ marginTop: 6 }}>달러로 볼 때는 날짜마다 그날의 환율로 바꿔서 보여줘요.</Caption>
       </Card>
 
       <Card padded={false} style={{ paddingVertical: 8 }}>

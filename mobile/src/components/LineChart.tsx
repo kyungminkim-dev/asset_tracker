@@ -6,16 +6,19 @@ import { krw, krwShort } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 
 interface Props {
+  /** value, cost 는 이미 표시 통화로 바꾼 값 */
   points: HistoryPoint[];
   color: string;
   height?: number;
+  /** 축·투자원금 표시용 서식 (기본: 원화) */
+  format?: { full: (n: number) => string; short: (n: number) => string };
   /** 손가락으로 그래프를 짚을 때 선택된 지점 (놓으면 null) */
   onScrub?: (point: HistoryPoint | null) => void;
 }
 
 const PAD_Y = 12;
 
-export function LineChart({ points, color, height = 200, onScrub }: Props) {
+export function LineChart({ points, color, height = 200, onScrub, format = { full: krw, short: krwShort } }: Props) {
   const t = useTheme();
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
@@ -89,13 +92,13 @@ export function LineChart({ points, color, height = 200, onScrub }: Props) {
       <View style={styles.axis}>
         <Text style={[styles.axisText, { color: t.sub }]}>{points[0]!.date}</Text>
         <Text style={[styles.axisText, { color: t.sub }]}>
-          {geo ? `${krwShort(geo.min)} ~ ${krwShort(geo.max)}` : ''}
+          {geo ? `${format.short(geo.min)} ~ ${format.short(geo.max)}` : ''}
         </Text>
         <Text style={[styles.axisText, { color: t.sub }]}>{points[points.length - 1]!.date}</Text>
       </View>
       {active !== null && (
         <Text style={[styles.axisText, { color: t.sub, textAlign: 'center' }]}>
-          투자원금 {krw(points[active]!.cost)}
+          투자원금 {format.full(points[active]!.cost)}
         </Text>
       )}
     </View>

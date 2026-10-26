@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { CurrencyToggle } from '@/components/CurrencyToggle';
 import { PeriodChips } from '@/components/PeriodChips';
 import { Avatar, Card, Chips, EmptyState, ListRow } from '@/components/ui';
 import { api, type Holding } from '@/lib/api';
-import { krw, MARKET_LABEL, pct, price, signed } from '@/lib/format';
+import { useMoney } from '@/lib/currency';
+import { MARKET_LABEL, pct, price, signed } from '@/lib/format';
 import { periodLabel, periodQuery, usePeriod } from '@/lib/range';
 import { changeColor, useTheme } from '@/lib/theme';
 import { useAsync } from '@/lib/useAsync';
@@ -16,6 +18,7 @@ export default function Holdings() {
   const { period } = usePeriod();
   const query = periodQuery(period);
   const [sort, setSort] = useState<Sort>('value');
+  const m = useMoney();
   const { data, error, loading, reload } = useAsync(() => api.summary(query), [query]);
 
   const holdings = useMemo(() => {
@@ -32,12 +35,15 @@ export default function Holdings() {
     >
       {data ? (
         <Card>
-          <Text style={{ color: t.sub, fontSize: 15 }}>주식 평가금액</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ color: t.sub, fontSize: 15 }}>주식 평가금액</Text>
+            <CurrencyToggle />
+          </View>
           <Text style={{ color: t.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.8, marginTop: 4 }}>
-            {krw(data.stockValue)}
+            {m.money(data.stockValue, data.usdKrw)}
           </Text>
           <Text style={{ color: changeColor(t, data.profit), fontSize: 15, fontWeight: '600', marginTop: 4 }}>
-            {signed(data.profit, krw)} ({signed(data.profitRate, pct)})
+            {m.moneySigned(data.profit, data.usdKrw)} ({signed(data.profitRate, pct)})
           </Text>
         </Card>
       ) : null}
@@ -51,7 +57,7 @@ export default function Holdings() {
         {error ? <Text style={{ color: t.danger, paddingHorizontal: 22, paddingVertical: 8 }}>{error}</Text> : null}
 
         {holdings.map((h) => (
-          <HoldingRow key={`${h.market}:${h.symbol}`} h={h} sort={sort} rangeLabel={periodLabel(period)} />
+          <HoldingRow key={`${h.market}:${h.symbol}`} h={h} sort={sort} rangeLabel={periodLabel(period)} usdKrw={data?.usdKrw ?? null} />
         ))}
 
         {!loading && holdings.length === 0 ? (
@@ -62,8 +68,9 @@ export default function Holdings() {
   );
 }
 
-function HoldingRow({ h, sort, rangeLabel }: { h: Holding; sort: Sort; rangeLabel: string }) {
+function HoldingRow({ h, sort, rangeLabel, usdKrw }: { h: Holding; sort: Sort; rangeLabel: string; usdKrw: number | null }) {
   const t = useTheme();
+  const m = useMoney();
   // 기간 등락순으로 볼 때는 오른쪽 아래에 기간 등락률을 보여준다
   const showPeriod = sort === 'period' && h.periodChangeRate !== null;
   const subValue = showPeriod ? h.periodChangeRate! : h.profitKrw;
@@ -72,11 +79,11 @@ function HoldingRow({ h, sort, rangeLabel }: { h: Holding; sort: Sort; rangeLabe
       left={<Avatar label={h.name} colorKey={h.symbol} />}
       title={h.name + (h.stale ? ' · 이전 데이터' : '')}
       subtitle={`${MARKET_LABEL[h.market] ?? h.market} · ${h.quantity.toLocaleString()}주 · ${price(h.currentPrice, h.currency)}`}
-      right={krw(h.valueKrw)}
+      right={m.money(h.valueKrw, usdKrw)}
       rightSub={
         showPeriod
           ? `${rangeLabel} ${signed(h.periodChangeRate!, pct)}`
-          : `${signed(h.profitKrw, krw)} (${signed(h.profitRate, pct)})`
+          : `${m.moneySigned(h.profitKrw, usdKrw)} (${signed(h.profitRate, pct)})`
       }
       rightSubColor={changeColor(t, subValue)}
     />

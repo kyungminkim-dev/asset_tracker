@@ -1,10 +1,12 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { CurrencyToggle } from '@/components/CurrencyToggle';
 import { LineChart } from '@/components/LineChart';
 import { PeriodChips } from '@/components/PeriodChips';
 import { AllocationBar, Button, Card, EmptyState, InfoRow, SectionTitle } from '@/components/ui';
 import { api, type HistoryPoint } from '@/lib/api';
+import { useMoney } from '@/lib/currency';
 import { krw, pct, signed } from '@/lib/format';
 import { periodPhrase, periodQuery, usePeriod } from '@/lib/range';
 import { changeColor, useTheme } from '@/lib/theme';
@@ -16,6 +18,7 @@ export default function Home() {
   const query = periodQuery(period);
   const [scrub, setScrub] = useState<HistoryPoint | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const m = useMoney();
 
   const { data, error, loading, reload } = useAsync(
     () => Promise.all([api.summary(query), api.history(query), api.connections()]),
@@ -58,11 +61,21 @@ export default function Home() {
     );
   }
 
+  // 달러로 볼 때는 날짜마다 그날 환율로 바꾼다. 환율이 빠진 날이 있으면 원화로 보여준다
+  const raw = history?.points ?? [];
+  const convertible = raw.every((p) => p.usdKrw);
+  const points = raw.map((p) => ({
+    ...p,
+    value: convertible ? m.convert(p.value, p.usdKrw) : p.value,
+    cost: convertible ? m.convert(p.cost, p.usdKrw) : p.cost,
+  }));
+  const fmt = m.formatter(convertible);
+  const latest = points[points.length - 1];
+
   // 그래프를 짚고 있으면 그 날짜 기준 값으로 보여준다
-  const points = history?.points ?? [];
-  const shown = scrub ?? (summary ? { date: summary.asOf, value: summary.totalValue } : null);
+  const shown = scrub ?? (latest && summary?.asOf === latest.date ? latest : null);
   const start = points[0]?.value ?? 0;
-  const delta = shown && start ? shown.value - start : (summary?.change.amount ?? 0);
+  const delta = shown && start ? shown.value - start : summary ? m.convert(summary.change.amount, summary.usdKrw) : 0;
   const rate = shown && start ? delta / start : (summary?.change.rate ?? 0);
   const color = changeColor(t, delta);
 
@@ -76,14 +89,19 @@ export default function Home() {
           <Text style={{ color: t.sub, fontSize: 15, fontWeight: '500' }}>
             {scrub ? scrub.date : '총 자산'}
           </Text>
-          <Button title="새로고침" icon="refresh" variant="neutral" size="small" onPress={sync} loading={syncing} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <CurrencyToggle />
+            <Button title="새로고침" icon="refresh" variant="neutral" size="small" onPress={sync} loading={syncing} />
+          </View>
         </View>
-        <Text style={[styles.total, { color: t.text }]}>{shown ? krw(shown.value) : '0원'}</Text>
+        <Text style={[styles.total, { color: t.text }]}>
+          {shown ? fmt.full(shown.value) : summary ? m.money(summary.totalValue, summary.usdKrw) : fmt.full(0)}
+        </Text>
         <Text style={{ color, fontSize: 15, fontWeight: '600', marginBottom: 20 }}>
-          {periodPhrase(period)} {signed(delta, krw)} ({signed(rate, pct)})
+          {periodPhrase(period)} {signed(delta, fmt.full)} ({signed(rate, pct)})
         </Text>
 
-        <LineChart points={points} color={color} onScrub={setScrub} height={180} />
+        <LineChart points={points} color={color} onScrub={setScrub} height={180} format={fmt} />
 
         <View style={{ marginTop: 16 }}>
           <PeriodChips />
@@ -94,12 +112,12 @@ export default function Home() {
         <>
           <Card>
             <SectionTitle>투자 현황</SectionTitle>
-            <InfoRow label="주식 평가금액" value={krw(summary.stockValue)} />
-            <InfoRow label="예수금" value={krw(summary.cash)} />
-            <InfoRow label="투자 원금" value={krw(summary.totalCost)} />
+            <InfoRow label="주식 평가금액" value={m.money(summary.stockValue, summary.usdKrw)} />
+            <InfoRow label="예수금" value={m.money(summary.cash, summary.usdKrw)} />
+            <InfoRow label="투자 원금" value={m.money(summary.totalCost, summary.usdKrw)} />
             <InfoRow
               label="평가 손익"
-              value={signed(summary.profit, krw)}
+              value={m.moneySigned(summary.profit, summary.usdKrw)}
               sub={`(${signed(summary.profitRate, pct)})`}
               valueColor={changeColor(t, summary.profit)}
             />
@@ -116,7 +134,7 @@ export default function Home() {
           </Card>
 
           <Text style={[styles.footnote, { color: t.sub }]}>
-            {summary.asOf} 기준{summary.fx.USD ? ` · 1달러 ${krw(summary.fx.USD)}` : ''}
+            {summary.asOf} 기준{summary.usdKrw ? ` · 1달러 ${krw(summary.usdKrw)}` : ''}
           </Text>
         </>
       ) : !loading ? (

@@ -96,6 +96,8 @@ async function doSync(db: Db, userId: string): Promise<SyncResult> {
     c.positions.forEach((p) => currencies.add(p.currency));
     c.cash.forEach((p) => currencies.add(p.currency));
   }
+  // 달러로 보기를 위해 보유 통화와 상관없이 USD 환율은 항상 저장한다
+  currencies.add('USD');
   const fx = await getFxRates(db, currencies);
   const krw = (amount: number, currency: string) => amount * (fx[currency] ?? 0);
 
