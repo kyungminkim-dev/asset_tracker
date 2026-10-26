@@ -47,7 +47,7 @@ export default function PeriodPicker() {
         value: field === 'from' ? from : to,
         mode: 'date',
         ...limits(field),
-        onChange: (event, date) => event.type === 'set' && onPick(field, date),
+        onValueChange: (_event, date) => onPick(field, date),
       });
     }
   };
@@ -94,7 +94,7 @@ export default function PeriodPicker() {
             themeVariant={t.scheme}
             accentColor={t.primary}
             {...limits(editing)}
-            onChange={(_e, date) => onPick(editing, date)}
+            onValueChange={(_e, date) => onPick(editing, date)}
             style={{ marginTop: 16 }}
           />
         ) : null}
