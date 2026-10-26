@@ -11,7 +11,7 @@ import {
   listConnections,
   publicConnection,
 } from './services/connections.js';
-import { history, RANGES, summary, type Range } from './services/portfolio.js';
+import { history, parsePeriod, summary } from './services/portfolio.js';
 import { syncUser } from './services/sync.js';
 
 declare module 'fastify' {
@@ -21,8 +21,6 @@ declare module 'fastify' {
     sessionToken: string;
   }
 }
-
-const parseRange = (value: unknown): Range => (typeof value === 'string' && value in RANGES ? (value as Range) : '1M');
 
 /** 로그인이 필요한 경로들. 모든 조회/수정은 req.userId 범위 안에서만 일어난다 */
 export function registerRoutes(app: FastifyInstance, db: Db) {
@@ -112,11 +110,10 @@ export function registerRoutes(app: FastifyInstance, db: Db) {
   // --- 동기화 / 포트폴리오 ---
   app.post('/api/sync', async (req) => syncUser(db, req.userId));
 
-  app.get<{ Querystring: { range?: string } }>('/api/portfolio/summary', async (req) =>
-    summary(db, req.userId, parseRange(req.query.range)),
-  );
+  // range=1W|1M|3M|6M|1Y|ALL 또는 from=YYYY-MM-DD&to=YYYY-MM-DD (직접 선택)
+  type PeriodQuery = { Querystring: { range?: string; from?: string; to?: string } };
 
-  app.get<{ Querystring: { range?: string } }>('/api/portfolio/history', async (req) =>
-    history(db, req.userId, parseRange(req.query.range)),
-  );
+  app.get<PeriodQuery>('/api/portfolio/summary', async (req) => summary(db, req.userId, parsePeriod(req.query)));
+
+  app.get<PeriodQuery>('/api/portfolio/history', async (req) => history(db, req.userId, parsePeriod(req.query)));
 }

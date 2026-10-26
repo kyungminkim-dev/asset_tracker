@@ -5,6 +5,28 @@ import { listConnections } from './connections.js';
 export const RANGES = { '1W': 7, '1M': 30, '3M': 91, '6M': 182, '1Y': 365, ALL: null } as const;
 export type Range = keyof typeof RANGES;
 
+/** 조회 기간. start/end 는 YYYY-MM-DD(KST), null 이면 처음부터 / 오늘까지 */
+export interface Period {
+  range: Range | 'CUSTOM';
+  start: string | null;
+  end: string | null;
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** 쿼리(range=1M 또는 from=2026-01-01&to=2026-03-31)를 기간으로 바꾼다 */
+export function parsePeriod(query: { range?: string; from?: string; to?: string }): Period {
+  const { from, to } = query;
+  if (from || to) {
+    if ((from && !DATE_RE.test(from)) || (to && !DATE_RE.test(to))) throw new Error('날짜는 YYYY-MM-DD 형식이어야 합니다.');
+    if (from && to && from > to) throw new Error('시작일이 종료일보다 늦습니다.');
+    return { range: 'CUSTOM', start: from ?? null, end: to ?? null };
+  }
+  const range = query.range && query.range in RANGES ? (query.range as Range) : '1M';
+  const days = RANGES[range];
+  return { range, start: days === null ? null : toKstDate(new Date(Date.now() - days * 86_400_000)), end: null };
+}
+
 interface SnapshotRow {
   date: string;
   total_value_krw: number;
@@ -13,33 +35,45 @@ interface SnapshotRow {
   fx: string;
 }
 
-/** 기간 시작 시점의 기준 스냅샷: 시작일 이전 가장 최근 것, 없으면 가장 오래된 것 */
-function baseline(db: Db, userId: string, range: Range): SnapshotRow | undefined {
-  const days = RANGES[range];
-  if (days !== null) {
-    const start = toKstDate(new Date(Date.now() - days * 86_400_000));
-    const row = db.prepare('SELECT * FROM snapshots WHERE user_id = ? AND date <= ? ORDER BY date DESC LIMIT 1').get(userId, start);
-    if (row) return row as unknown as SnapshotRow;
-  }
-  return db.prepare('SELECT * FROM snapshots WHERE user_id = ? ORDER BY date ASC LIMIT 1').get(userId) as unknown as SnapshotRow | undefined;
+/** 기간 끝 시점 스냅샷: 종료일 이전 가장 최근 것 */
+function endSnapshot(db: Db, userId: string, period: Period): SnapshotRow | undefined {
+  return db
+    .prepare('SELECT * FROM snapshots WHERE user_id = ? AND date <= ? ORDER BY date DESC LIMIT 1')
+    .get(userId, period.end ?? '9999-12-31') as unknown as SnapshotRow | undefined;
 }
 
-export function history(db: Db, userId: string, range: Range) {
-  const base = baseline(db, userId, range);
-  if (!base) return { range, points: [] };
+/** 기간 시작 시점의 기준 스냅샷: 시작일 이전 가장 최근 것, 없으면 기간 안의 가장 오래된 것 */
+function baseline(db: Db, userId: string, period: Period): SnapshotRow | undefined {
+  if (period.start) {
+    const row = db
+      .prepare('SELECT * FROM snapshots WHERE user_id = ? AND date <= ? ORDER BY date DESC LIMIT 1')
+      .get(userId, period.start);
+    if (row) return row as unknown as SnapshotRow;
+  }
+  return db
+    .prepare('SELECT * FROM snapshots WHERE user_id = ? AND date <= ? ORDER BY date ASC LIMIT 1')
+    .get(userId, period.end ?? '9999-12-31') as unknown as SnapshotRow | undefined;
+}
+
+export function history(db: Db, userId: string, period: Period) {
+  const base = baseline(db, userId, period);
+  if (!base) return { range: period.range, points: [] };
   const rows = db
-    .prepare('SELECT date, total_value_krw, total_cost_krw, cash_krw FROM snapshots WHERE user_id = ? AND date >= ? ORDER BY date')
-    .all(userId, base.date) as unknown as SnapshotRow[];
+    .prepare(
+      'SELECT date, total_value_krw, total_cost_krw, cash_krw FROM snapshots WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date',
+    )
+    .all(userId, base.date, period.end ?? '9999-12-31') as unknown as SnapshotRow[];
   return {
-    range,
+    range: period.range,
     points: rows.map((r) => ({ date: r.date, value: r.total_value_krw, cost: r.total_cost_krw + r.cash_krw })),
   };
 }
 
-export function summary(db: Db, userId: string, range: Range) {
-  const latest = db.prepare('SELECT * FROM snapshots WHERE user_id = ? ORDER BY date DESC LIMIT 1').get(userId) as unknown as SnapshotRow | undefined;
+export function summary(db: Db, userId: string, period: Period) {
+  const latest = endSnapshot(db, userId, period);
   if (!latest) return null;
-  const base = baseline(db, userId, range)!;
+  const base = baseline(db, userId, period)!;
+  const range = period.range;
 
   const positions = db.prepare('SELECT * FROM snapshot_positions WHERE user_id = ? AND date = ?').all(userId, latest.date) as any[];
   const cash = db.prepare('SELECT * FROM snapshot_cash WHERE user_id = ? AND date = ?').all(userId, latest.date) as any[];
@@ -81,6 +115,7 @@ export function summary(db: Db, userId: string, range: Range) {
   return {
     asOf: latest.date,
     range,
+    period: { start: period.start, end: period.end },
     baselineDate: base.date,
     fx: JSON.parse(latest.fx) as Record<string, number>,
     totalValue,
