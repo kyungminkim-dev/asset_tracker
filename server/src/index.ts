@@ -4,6 +4,7 @@ import { registerAuthRoutes } from './auth/routes.js';
 import { userIdForSession } from './auth/service.js';
 import { config } from './config.js';
 import { openDb } from './db.js';
+import { registerLegalRoutes } from './legal.js';
 import { registerRoutes } from './routes.js';
 import { syncEveryone } from './services/sync.js';
 
@@ -26,6 +27,7 @@ app.setErrorHandler((err: Error, _req, reply) => {
 
 app.get('/health', async () => ({ ok: true }));
 registerAuthRoutes(app, db);
+registerLegalRoutes(app);
 
 // /api/* 는 로그인 세션이 있어야 한다
 app.register(async (api) => {

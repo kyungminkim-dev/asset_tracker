@@ -28,4 +28,14 @@ export const config = {
   },
   /** 개발용 테스트 로그인. 누구나 같은 테스트 계정으로 들어올 수 있으므로 배포 서버에서는 절대 켜지 말 것 */
   devLogin: process.env.DEV_LOGIN === 'true',
+  /** 약관·개인정보 처리방침에 들어가는 운영자 정보. 비어 있으면 문서에 "입력 필요"로 표시된다 */
+  legal: {
+    serviceName: process.env.LEGAL_SERVICE_NAME || '자산 트래커',
+    operator: process.env.LEGAL_OPERATOR ?? '',
+    contactEmail: process.env.LEGAL_CONTACT_EMAIL ?? '',
+    privacyOfficer: process.env.LEGAL_PRIVACY_OFFICER ?? '',
+    hosting: process.env.LEGAL_HOSTING ?? '',
+    serverLocation: process.env.LEGAL_SERVER_LOCATION ?? '',
+    effectiveDate: process.env.LEGAL_EFFECTIVE_DATE ?? '',
+  },
 };

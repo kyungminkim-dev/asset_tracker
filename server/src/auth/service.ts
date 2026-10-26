@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 import { transaction, type Db } from '../db.js';
+import { tokenCacheKey } from '../brokers/util.js';
 import type { OAuthProfile } from './providers.js';
 
 export interface User {
@@ -140,7 +141,13 @@ export function getUser(db: Db, id: string): User | null {
 
 /** 회원 탈퇴: 연결된 증권사 키, 자산 기록, 세션이 모두 함께 삭제된다 (ON DELETE CASCADE) */
 export function deleteUser(db: Db, id: string) {
-  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  transaction(db, () => {
+    // kv(증권사 접근 토큰 캐시)는 외래키로 묶여 있지 않아 따로 지운다
+    const conns = db.prepare('SELECT id FROM connections WHERE user_id = ?').all(id) as { id: string }[];
+    const delToken = db.prepare('DELETE FROM kv WHERE key = ?');
+    for (const c of conns) delToken.run(tokenCacheKey(c.id));
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  });
 }
 
 // --- 1회용 로그인 코드 ---

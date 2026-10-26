@@ -39,11 +39,11 @@ export const toss: BrokerDefinition = {
     { key: 'clientSecret', label: 'Client Secret', secret: true },
   ],
 
-  create(credentials, { db }) {
+  create(credentials, { db, connectionId }) {
     const { clientId = '', clientSecret = '' } = credentials;
 
     const token = () =>
-      cachedToken(db, `toss:token:${clientId}`, async () => {
+      cachedToken(db, connectionId, async () => {
         const { body } = await requestJson(ID, `${BASE}/oauth2/token`, {
           method: 'POST',
           headers: { 'content-type': 'application/x-www-form-urlencoded' },

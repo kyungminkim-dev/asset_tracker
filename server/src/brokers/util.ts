@@ -36,15 +36,19 @@ export function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+export const tokenCacheKey = (connectionId: string) => `token:${connectionId}`;
+
 /**
  * 접근 토큰 캐시. 증권사들은 토큰 발급 횟수를 제한하므로(예: 한국투자증권 1분 1회)
  * 서버 재시작 후에도 재사용할 수 있게 DB에 암호화해 둔다.
  */
 export async function cachedToken(
   db: Db,
-  key: string,
+  connectionId: string,
   issue: () => Promise<{ token: string; expiresInSec: number }>,
 ): Promise<string> {
+  // 키 이름에 API 키 같은 민감 정보를 넣지 않고 연결 id 로 구분한다 (연결 해제 시 함께 삭제)
+  const key = tokenCacheKey(connectionId);
   const row = db.prepare('SELECT value, expires_at FROM kv WHERE key = ?').get(key) as
     | { value: string; expires_at: number }
     | undefined;

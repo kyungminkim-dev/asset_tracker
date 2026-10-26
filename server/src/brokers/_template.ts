@@ -5,7 +5,7 @@
  * 2. id / name / credentialFields 를 채운다. 앱의 연결 폼은 이 필드로 자동 생성된다.
  * 3. fetchAccounts 에서 증권사 API 를 호출해 AccountSnapshot[] 으로 변환한다.
  *    - 금액은 종목의 거래 통화 그대로 넣는다. 원화 환산은 sync 서비스가 한다.
- *    - 토큰은 cachedToken 으로 캐시한다. (발급 횟수 제한 대비)
+ *    - 토큰은 cachedToken(db, connectionId, ...) 으로 캐시한다. (발급 횟수 제한 대비, 연결 해제 시 함께 삭제)
  * 4. registry.ts 의 brokers 배열에 추가한다.
  */
 import type { BrokerDefinition } from './types.js';
@@ -25,9 +25,9 @@ export const example: BrokerDefinition = {
     { key: 'accountNo', label: '계좌번호' },
   ],
 
-  create(credentials, { db }) {
+  create(credentials, { db, connectionId }) {
     const token = () =>
-      cachedToken(db, `${ID}:token:${credentials.apiKey}`, async () => {
+      cachedToken(db, connectionId, async () => {
         const { body } = await requestJson(ID, `${BASE}/oauth/token`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },

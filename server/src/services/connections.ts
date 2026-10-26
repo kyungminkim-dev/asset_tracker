@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getBroker } from '../brokers/registry.js';
+import { tokenCacheKey } from '../brokers/util.js';
 import { decryptJson, encryptJson } from '../crypto.js';
 import type { Db } from '../db.js';
 
@@ -75,8 +76,10 @@ export function createConnection(
   return row;
 }
 
+/** 연결 해제: 암호화된 API 키와 캐시된 증권사 접근 토큰을 함께 지운다 */
 export function deleteConnection(db: Db, userId: string, id: string) {
-  db.prepare('DELETE FROM connections WHERE id = ? AND user_id = ?').run(id, userId);
+  const { changes } = db.prepare('DELETE FROM connections WHERE id = ? AND user_id = ?').run(id, userId);
+  if (changes) db.prepare('DELETE FROM kv WHERE key = ?').run(tokenCacheKey(id));
 }
 
 export function adapterFor(db: Db, row: ConnectionRow) {

@@ -44,7 +44,7 @@ export const kis: BrokerDefinition = {
     },
   ],
 
-  create(credentials, { db }) {
+  create(credentials, { db, connectionId }) {
     const env = credentials.env === 'paper' ? 'paper' : 'real';
     const base = BASE[env];
     const { appKey = '', appSecret = '' } = credentials;
@@ -56,7 +56,7 @@ export const kis: BrokerDefinition = {
     const gap = env === 'paper' ? 600 : 100;
 
     const token = () =>
-      cachedToken(db, `kis:token:${env}:${appKey}`, async () => {
+      cachedToken(db, connectionId, async () => {
         const { body } = await requestJson(ID, `${base}/oauth2/tokenP`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
