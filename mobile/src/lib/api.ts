@@ -83,6 +83,21 @@ export interface HistoryPoint {
   usdKrw: number | null;
 }
 
+export interface NewsItem {
+  title: string;
+  url: string;
+  source: string | null;
+  publishedAt: string | null;
+  summary: string | null;
+  symbol: string;
+  name: string;
+}
+
+export interface NewsResponse {
+  provider: { id: string; name: string; notice: string | null };
+  items: NewsItem[];
+}
+
 export interface ManualPosition {
   id: string;
   symbol: string;
@@ -189,6 +204,9 @@ export const api = {
   deleteManualPosition: (id: string, positionId: string) =>
     request(`/api/connections/${id}/manual-positions/${positionId}`, { method: 'DELETE' }),
   sync: () => request<SyncResult>('/api/sync', { method: 'POST' }),
+  /** symbol 이 없으면 보유 상위 종목 뉴스를 섞어서 */
+  news: (stock?: { symbol: string; market: string }) =>
+    request<NewsResponse>(`/api/news${stock ? `?${new URLSearchParams(stock)}` : ''}`),
   /** query: periodQuery(period) 결과 (range=1M 또는 from=…&to=…) */
   summary: (query: string) => request<Summary | null>(`/api/portfolio/summary?${query}`),
   history: (query: string) => request<{ points: HistoryPoint[] }>(`/api/portfolio/history?${query}`),

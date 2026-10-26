@@ -27,6 +27,18 @@ export function usdShort(n: number) {
 
 export const signed = (n: number, fmt: (n: number) => string) => (n > 0 ? '+' : n < 0 ? '-' : '') + fmt(Math.abs(n));
 
+/** "3분 전", "2시간 전", "어제", "10.21" */
+export function timeAgo(iso: string | null) {
+  if (!iso) return '';
+  const diff = (Date.now() - Date.parse(iso)) / 1000;
+  if (diff < 60) return '방금';
+  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+  if (diff < 172800) return '어제';
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export const pct = (r: number) => `${(r * 100).toFixed(2)}%`;
 
 export function price(n: number, currency: string) {

@@ -16,7 +16,11 @@ export type IconName =
   | 'logout'
   | 'server'
   | 'trash'
-  | 'calendar';
+  | 'calendar'
+  | 'news'
+  | 'chevron-down'
+  | 'search'
+  | 'close';
 
 /** 앱 전용 단색 아이콘 (24 그리드, 2px 선) */
 export function Icon({ name, size = 24, color }: { name: IconName; size?: number; color: ColorValue }) {
@@ -58,6 +62,20 @@ export function Icon({ name, size = 24, color }: { name: IconName; size?: number
         </>
       )}
       {name === 'trash' && <Path {...stroke} d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />}
+      {name === 'chevron-down' && <Path {...stroke} d="M6 9l6 6 6-6" />}
+      {name === 'search' && (
+        <>
+          <Circle {...stroke} cx={11} cy={11} r={7} />
+          <Path {...stroke} d="M20 20l-3.5-3.5" />
+        </>
+      )}
+      {name === 'close' && <Path {...stroke} d="M6 6l12 12M18 6L6 18" />}
+      {name === 'news' && (
+        <>
+          <Rect {...stroke} x={3} y={4} width={18} height={16} rx={3} />
+          <Path {...stroke} d="M7 9h10M7 13h10M7 17h6" />
+        </>
+      )}
       {name === 'calendar' && (
         <>
           <Rect {...stroke} x={3} y={5} width={18} height={16} rx={3} />

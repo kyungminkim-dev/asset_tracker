@@ -11,6 +11,7 @@ import {
   listConnections,
   publicConnection,
 } from './services/connections.js';
+import { newsProvider, newsQuery, searchNews } from './news/index.js';
 import { history, parsePeriod, summary } from './services/portfolio.js';
 import { syncUser } from './services/sync.js';
 
@@ -106,6 +107,49 @@ export function registerRoutes(app: FastifyInstance, db: Db) {
       return { ok: true };
     },
   );
+
+  // --- 뉴스 ---
+  /** 최근 스냅샷 기준 보유 종목 (평가액 큰 순) */
+  const heldStocks = (userId: string) =>
+    db
+      .prepare(
+        `SELECT symbol, name, market, SUM(market_value_krw) AS value FROM snapshot_positions
+         WHERE user_id = ? AND date = (SELECT MAX(date) FROM snapshots WHERE user_id = ?)
+         GROUP BY market, symbol ORDER BY value DESC`,
+      )
+      .all(userId, userId) as { symbol: string; name: string; market: string }[];
+
+  /**
+   * 보유 종목 뉴스. symbol/market 을 주면 그 종목만, 없으면 평가액 상위 5종목 뉴스를 최신순으로 섞어서.
+   * 보유하지 않은 종목은 조회할 수 없다 (서버가 아무 검색어나 대신 검색해 주는 통로가 되지 않도록).
+   */
+  app.get<{ Querystring: { symbol?: string; market?: string } }>('/api/news', async (req, reply) => {
+    const held = heldStocks(req.userId);
+    const { symbol, market } = req.query;
+    const targets = symbol ? held.filter((s) => s.symbol === symbol && (!market || s.market === market)) : held.slice(0, 5);
+    if (symbol && targets.length === 0) return reply.code(404).send({ error: '보유한 종목이 아닙니다.' });
+
+    const results = await Promise.allSettled(
+      targets.map(async (s) => (await searchNews(newsQuery(s.name, s.market), symbol ? 30 : 10)).map((n) => ({ ...n, symbol: s.symbol, name: s.name }))),
+    );
+    const failed = results.filter((r) => r.status === 'rejected');
+    if (targets.length > 0 && failed.length === targets.length) {
+      return reply.code(502).send({ error: `뉴스를 가져오지 못했어요: ${(failed[0] as PromiseRejectedResult).reason?.message ?? ''}` });
+    }
+
+    // 여러 종목에 같은 기사가 걸리면 하나만 남기고 최신순으로
+    const seen = new Set<string>();
+    const items = results
+      .flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
+      .filter((n) => !seen.has(n.title) && seen.add(n.title))
+      .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''))
+      .slice(0, 40);
+
+    return {
+      provider: { id: newsProvider.id, name: newsProvider.name, notice: newsProvider.notice ?? null },
+      items,
+    };
+  });
 
   // --- 동기화 / 포트폴리오 ---
   app.post('/api/sync', async (req) => syncUser(db, req.userId));

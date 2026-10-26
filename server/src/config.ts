@@ -26,6 +26,11 @@ export const config = {
     restApiKey: process.env.KAKAO_REST_API_KEY ?? '',
     clientSecret: process.env.KAKAO_CLIENT_SECRET ?? '',
   },
+  /** 네이버 검색 API (뉴스). 없으면 Google 뉴스 RSS 를 쓴다 */
+  naver: {
+    clientId: process.env.NAVER_CLIENT_ID ?? '',
+    clientSecret: process.env.NAVER_CLIENT_SECRET ?? '',
+  },
   /** 개발용 테스트 로그인. 누구나 같은 테스트 계정으로 들어올 수 있으므로 배포 서버에서는 절대 켜지 말 것 */
   devLogin: process.env.DEV_LOGIN === 'true',
   /** 약관·개인정보 처리방침에 들어가는 운영자 정보. 비어 있으면 문서에 "입력 필요"로 표시된다 */

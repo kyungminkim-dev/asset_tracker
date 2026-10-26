@@ -120,6 +120,17 @@ Expo Go 에서는 `exp://` 주소로 돌아오므로 서버 `.env` 의 `APP_REDI
 운영자, 연락처, 서버 위치 등은 `.env` 의 `LEGAL_*` 값으로 채워집니다. 비어 있으면 문서에 노란색으로 표시되고 "초안" 안내가 붙어요.
 **초안이므로 공개 전에 법률 검토를 받으세요.** 특히 불특정 다수에게 서비스한다면 신용정보법상 마이데이터(본인신용정보관리업) 해당 여부와 각 증권사 Open API 약관을 확인해야 합니다.
 
+### 종목 뉴스
+
+뉴스 탭은 보유 종목의 뉴스를 보여줍니다. 출처는 서버 `.env` 에 따라 정해져요.
+
+| 설정 | 출처 | 비고 |
+|---|---|---|
+| `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 있음 | 네이버 검색 API (뉴스) | 공식 API, 하루 25,000회 무료. 네이버 개발자센터에서 "검색" API 로 애플리케이션 등록 |
+| 없음 (기본) | Google 뉴스 RSS | 키 불필요. **개인·비상업적 용도로만** 허용되므로 공개 서비스에는 네이버 키를 넣으세요 |
+
+같은 검색어는 서버가 10분 동안 캐시하고, 보유하지 않은 종목은 검색하지 않습니다.
+
 ### 앱스토어 배포 전 확인
 
 - iOS 앱이 구글/카카오 같은 외부 로그인을 제공하면 App Store 심사 지침(4.8)상 **Sign in with Apple** 같은 개인정보 보호형 로그인도 함께 제공해야 할 수 있습니다.
@@ -135,6 +146,8 @@ Expo Go 에서는 `exp://` 주소로 돌아오므로 서버 `.env` 의 `APP_REDI
 | GET | `/auth/:provider/start?redirect_uri=&challenge=` | 로그인 시작 (브라우저로 연다) |
 | GET | `/auth/:provider/callback` | 구글/카카오 콜백 |
 | POST | `/auth/exchange` | 1회용 코드 + verifier → 세션 토큰 |
+| POST | `/auth/poll` | verifier 로 로그인 완료 여부 확인 (딥링크로 못 돌아오는 환경용) |
+| GET | `/legal/:doc` | 약관 문서 (terms, consent, privacy) |
 
 로그인 필요 (`Authorization: Bearer {세션 토큰}`):
 
@@ -146,5 +159,6 @@ Expo Go 에서는 `exp://` 주소로 돌아오므로 서버 `.env` 의 `APP_REDI
 | GET/POST/DELETE | `/api/connections` | 증권사 연결 (POST 때 실제 조회로 키를 검증) |
 | GET/PUT/DELETE | `/api/connections/:id/manual-positions` | 직접 입력 종목 |
 | POST | `/api/sync` | 지금 동기화 |
-| GET | `/api/portfolio/summary?range=1M` | 총자산, 기간 변화, 비중, 종목별 손익 |
-| GET | `/api/portfolio/history?range=1Y` | 일별 총자산 추이 |
+| GET | `/api/portfolio/summary?range=1M` | 총자산, 기간 변화, 비중, 종목별 손익 (`from=&to=` 로 기간 직접 지정, `usdKrw` 포함) |
+| GET | `/api/portfolio/history?range=1Y` | 일별 총자산 추이 (날짜별 `usdKrw` 포함) |
+| GET | `/api/news?symbol=&market=` | 보유 종목 뉴스 (없으면 상위 5종목 뉴스를 최신순으로) |

@@ -27,6 +27,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: '홈', headerTitle: '내 자산', tabBarIcon: tabIcon('home') }} />
       <Tabs.Screen name="holdings" options={{ title: '주식', headerTitle: '보유 주식', tabBarIcon: tabIcon('chart') }} />
+      <Tabs.Screen name="news" options={{ title: '뉴스', headerTitle: '내 종목 뉴스', tabBarIcon: tabIcon('news') }} />
       <Tabs.Screen name="connections" options={{ title: '계좌', headerTitle: '연결된 계좌', tabBarIcon: tabIcon('wallet') }} />
       <Tabs.Screen name="settings" options={{ title: '설정', tabBarIcon: tabIcon('menu') }} />
     </Tabs>
